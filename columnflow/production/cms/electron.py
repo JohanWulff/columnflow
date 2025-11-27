@@ -48,13 +48,30 @@ class ElectronSFConfig:
         raise ValueError(f"cannot convert {obj} to ElectronSFConfig")
 
 
+@dataclasses.dataclass
+class ElectronRecoSFConfig(ElectronSFConfig):
+    """
+    Subclass of ElectronSFConfig to address the fact that electron corrections
+    are stored in different json's for 2024. The producer inspects the
+    ``external_name`` attribute on the config to decide which entry in the
+    external files mapping to use (defaults to ``electron_sf``).
+    """
+    external_name: str = "electron_reco"
+
+
 @producer(
     uses={"Electron.{pt,eta,phi,deltaEtaSC}"},
     # produces in the init
     # only run on mc
     mc_only=True,
     # function to determine the correction file
-    get_electron_file=(lambda self, external_files: external_files.electron_sf),
+    # extra hook to allow different external file names in subclasses (e.g. for reco SFs in 2024)
+    get_electron_file=(
+        lambda self, external_files: getattr(
+            external_files,
+            getattr(getattr(self, "electron_config", None), "external_name", "electron_sf"),
+        )
+    ),
     # function to determine the electron weight config
     get_electron_config=(lambda self: ElectronSFConfig.new(self.config_inst.x("electron_sf", self.config_inst.x("electron_sf_names", None)))),  # noqa: E501
     # choose if the eta variable should be the electron eta or the super cluster eta
